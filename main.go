@@ -57,7 +57,7 @@ type BudgetConfig struct {
 func isEvening(tz string) bool {
 	loc, err := time.LoadLocation(tz)
 	if err != nil {
-		loc, _ = time.LoadLocation("Asia/Jerusalem")
+		loc = time.UTC
 	}
 	hour := time.Now().In(loc).Hour()
 	return hour >= 17 || hour < 5
@@ -343,7 +343,7 @@ var budgetGated = map[string]string{
 	"google_std":    "standard",
 }
 
-func synthesize(cfg *Config, budget *Budget, text string, evening bool, report bool) ([]byte, string, error) {
+func synthesize(cfg *Config, budget *Budget, text string, evening bool) ([]byte, string, error) {
 	chars := len([]rune(text))
 	period := periodLabel(evening)
 
@@ -367,17 +367,9 @@ func synthesize(cfg *Config, budget *Budget, text string, evening bool, report b
 
 		vp := resolveProfile(pcfg, evening)
 		vlog("[tts] trying %s (%s) ...", name, period)
-		start := time.Now()
 		audio, err := fn(pcfg, vp, text)
-		latencyMs := time.Since(start).Milliseconds()
 		if err != nil {
 			vlog("[tts] %s failed: %v", name, err)
-			if report {
-				go reportTTSEvent(proxyTTSEvent{
-					Provider: name, Period: period, Success: false,
-					LatencyMs: latencyMs, Chars: chars, Error: err.Error(),
-				})
-			}
 			continue
 		}
 
@@ -386,57 +378,16 @@ func synthesize(cfg *Config, budget *Budget, text string, evening bool, report b
 		}
 
 		vlog("[tts] %s OK (%d bytes, %s profile)", name, len(audio), period)
-		if report {
-			go reportTTSEvent(proxyTTSEvent{
-				Provider: name, Period: period, Success: true,
-				LatencyMs: latencyMs, Chars: chars, Bytes: len(audio),
-			})
-		}
 		return audio, name, nil
 	}
 
-	if report {
-		go reportTTSEvent(proxyTTSEvent{
-			Provider: "", Period: period, Success: false,
-			Error: "all providers failed",
-		})
-	}
 	return nil, "", fmt.Errorf("all TTS providers failed or budget-exhausted")
-}
-
-// ── Proxy event reporting (fire-and-forget) ─────────────────────────
-
-var proxyEventURL = "http://127.0.0.1:4000/tts-event"
-var eventClient = &http.Client{Timeout: 2 * time.Second}
-
-type proxyTTSEvent struct {
-	Provider  string `json:"provider"`
-	Period    string `json:"period"`
-	Success   bool   `json:"success"`
-	LatencyMs int64  `json:"latency_ms"`
-	Chars     int    `json:"chars"`
-	Bytes     int    `json:"bytes"`
-	Error     string `json:"error,omitempty"`
-}
-
-func reportTTSEvent(ev proxyTTSEvent) {
-	body, err := json.Marshal(ev)
-	if err != nil {
-		return
-	}
-	resp, err := eventClient.Post(proxyEventURL, "application/json", bytes.NewReader(body))
-	if err != nil {
-		vlog("[tts] proxy event report failed (proxy down?): %v", err)
-		return
-	}
-	resp.Body.Close()
-	vlog("[tts] reported event to proxy: %s %s %v", ev.Provider, ev.Period, ev.Success)
 }
 
 // ── Test-all ─────────────────────────────────────────────────────────
 
 func testAllProviders(cfg *Config, budget *Budget, tz string) {
-	testText := "בדיקת קול"
+	testText := "Voice check, one two three."
 	autoEvening := isEvening(tz)
 	loc, _ := time.LoadLocation(tz)
 	now := time.Now().In(loc)
@@ -561,7 +512,7 @@ func defaultConfig() *Config {
 	}
 }
 
-// ── Env loader (same pattern as picoclaw-proxy) ──────────────────────
+// ── Env loader ───────────────────────────────────────────────────────
 
 func loadEnvFile(path string) {
 	data, err := os.ReadFile(path)
@@ -600,11 +551,10 @@ func loadConfig(path string) (*Config, error) {
 // ── Main ─────────────────────────────────────────────────────────────
 
 func main() {
-	text := flag.String("text", "", "Hebrew text to synthesize (required)")
-	output := flag.String("output", "picoclaw_tts_output.wav", "Output WAV path (48kHz mono S16LE)")
+	text := flag.String("text", "", "Text to synthesize (required)")
+	output := flag.String("output", "tts_output.wav", "Output WAV path (48kHz mono S16LE)")
 	configPath := flag.String("config", "", "Config JSON path (optional, uses defaults)")
-	defaultEnv := filepath.Join(os.Getenv("HOME"), ".picoclaw", "proxy", "env.conf")
-	envPath := flag.String("env", defaultEnv, "Env file path")
+	envPath := flag.String("env", ".env", "Env file path (KEY=VALUE per line; missing file is silently ignored)")
 	showBudget := flag.Bool("budget", false, "Print budget summary and exit")
 	forcePeriod := flag.String("period", "", "Force time period: morning or evening (auto-detect by default)")
 	testAll := flag.Bool("test", false, "Test all providers for both periods (morning+evening) and report results")
@@ -640,7 +590,7 @@ func main() {
 		cfg.Providers[name] = p
 	}
 
-	budgetPath := filepath.Join(os.Getenv("HOME"), ".picoclaw", "tts_usage.json")
+	budgetPath := filepath.Join(os.Getenv("HOME"), ".he2en-tts", "tts_usage.json")
 	budget := NewBudget(budgetPath, map[string]int{
 		"elevenlabs": cfg.Budget.ElevenLabs,
 		"cartesia":   cfg.Budget.Cartesia,
@@ -655,7 +605,7 @@ func main() {
 
 	tz := cfg.Timezone
 	if tz == "" {
-		tz = "Asia/Jerusalem"
+		tz = "UTC"
 	}
 
 	if *testAll {
@@ -664,7 +614,7 @@ func main() {
 	}
 
 	if *text == "" {
-		fmt.Fprintln(os.Stderr, "usage: picoclaw-tts --text 'שלום' [--output out.wav] [--period morning|evening] [--test]")
+		fmt.Fprintln(os.Stderr, "usage: he2en-tts --config tts_config.json --text 'Hello, world.' [--output out.wav] [--period morning|evening] [--test]")
 		os.Exit(1)
 	}
 
@@ -678,7 +628,7 @@ func main() {
 
 	vlog("[tts] period: %s (tz: %s)", periodLabel(evening), tz)
 
-	audio, provider, err := synthesize(cfg, budget, *text, evening, true)
+	audio, provider, err := synthesize(cfg, budget, *text, evening)
 	if err != nil {
 		log.Fatalf("tts failed: %v", err)
 	}
@@ -694,7 +644,4 @@ func main() {
 
 	fmt.Printf("%s\n", *output)
 	vlog("wrote %d bytes via %s (%s) → %s", len(audio), provider, periodLabel(evening), *output)
-
-	// Brief pause for fire-and-forget proxy event reporting goroutine
-	time.Sleep(100 * time.Millisecond)
 }
