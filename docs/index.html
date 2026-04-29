@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>he2en-tts — text to speech in your browser</title>
+  <meta name="description" content="Browser-based text-to-speech using Google Cloud, ElevenLabs, or Cartesia. Your API keys never leave your machine." />
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #181b22;
+      --panel-2: #20242d;
+      --border: #2a2f3a;
+      --text: #e6e8ee;
+      --muted: #8a93a4;
+      --accent: #7c9cff;
+      --accent-hover: #9bb1ff;
+      --danger: #ff7a7a;
+      --success: #6ee7a8;
+      --radius: 10px;
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --panel-2: #f1f3f7;
+        --border: #d9dde4;
+        --text: #1a1d23;
+        --muted: #5f6776;
+        --accent: #3a5dff;
+        --accent-hover: #2547e8;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    header { margin-bottom: 1.5rem; }
+    h1 {
+      margin: 0 0 0.25rem;
+      font-size: 1.6rem;
+      letter-spacing: -0.01em;
+    }
+    header p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .row + .row { margin-top: 0.75rem; }
+    label {
+      font-size: 0.85rem;
+      color: var(--muted);
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+    .field { flex: 1 1 200px; min-width: 160px; }
+    input[type="text"], input[type="password"], select, textarea {
+      width: 100%;
+      background: var(--panel-2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.55rem 0.7rem;
+      font-size: 0.95rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    textarea {
+      resize: vertical;
+      min-height: 140px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+    .provider-tabs {
+      display: flex;
+      gap: 0.25rem;
+      margin-bottom: 0.75rem;
+      background: var(--panel-2);
+      padding: 0.25rem;
+      border-radius: 8px;
+    }
+    .provider-tabs label {
+      flex: 1;
+      margin: 0;
+      padding: 0.5rem 0.75rem;
+      text-align: center;
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: var(--text);
+      transition: background 0.15s;
+    }
+    .provider-tabs label:hover { background: rgba(124,156,255,0.08); }
+    .provider-tabs input[type="radio"] { display: none; }
+    .provider-tabs input[type="radio"]:checked + span {
+      background: var(--accent);
+      color: white;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      display: block;
+      margin: -0.5rem -0.75rem;
+    }
+    .config { display: none; }
+    .config.active { display: block; }
+    .api-key-wrapper { position: relative; }
+    .api-key-wrapper button {
+      position: absolute;
+      right: 0.4rem;
+      top: 50%;
+      transform: translateY(-50%);
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 0.2rem 0.4rem;
+    }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.3rem;
+    }
+    .hint a { color: var(--accent); text-decoration: none; }
+    .hint a:hover { text-decoration: underline; }
+    .counter {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-align: right;
+      margin-top: 0.25rem;
+    }
+    .counter.warn { color: #f0b86c; }
+    .counter.danger { color: var(--danger); }
+    button.primary {
+      width: 100%;
+      background: var(--accent);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 0.85rem;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+    button.primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .status.show { display: block; }
+    .status.error { background: rgba(255,122,122,0.1); color: var(--danger); border: 1px solid rgba(255,122,122,0.3); }
+    .status.info { background: rgba(124,156,255,0.1); color: var(--accent); border: 1px solid rgba(124,156,255,0.3); }
+    .status.success { background: rgba(110,231,168,0.1); color: var(--success); border: 1px solid rgba(110,231,168,0.3); }
+    audio {
+      width: 100%;
+      margin-top: 1rem;
+      display: none;
+    }
+    audio.show { display: block; }
+    .download-row {
+      margin-top: 0.5rem;
+      display: none;
+    }
+    .download-row.show { display: block; }
+    .download-row a {
+      color: var(--accent);
+      font-size: 0.9rem;
+      text-decoration: none;
+    }
+    .download-row a:hover { text-decoration: underline; }
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--muted); }
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: -2px;
+      margin-right: 0.4rem;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>he2en-tts</h1>
+      <p>Type or paste text, hear it spoken. Your API keys stay in this browser (saved to <code>localStorage</code>) and are sent directly to the chosen provider — never to any third-party server.</p>
+    </header>
+
+    <div class="panel">
+      <div class="provider-tabs" role="tablist">
+        <label><input type="radio" name="provider" value="google" checked /><span>Google Cloud TTS</span></label>
+        <label><input type="radio" name="provider" value="elevenlabs" /><span>ElevenLabs</span></label>
+        <label><input type="radio" name="provider" value="cartesia" /><span>Cartesia</span></label>
+      </div>
+
+      <!-- Google Cloud TTS -->
+      <div class="config active" id="config-google">
+        <div class="row">
+          <div class="field">
+            <label for="google-key">API key</label>
+            <div class="api-key-wrapper">
+              <input type="password" id="google-key" placeholder="AIza..." autocomplete="off" />
+              <button type="button" data-toggle="google-key">show</button>
+            </div>
+            <div class="hint">Get a key at <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a> with the Text-to-Speech API enabled.</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="google-voice">Voice</label>
+            <select id="google-voice"></select>
+          </div>
+          <div class="field">
+            <label for="google-language">Language code</label>
+            <input type="text" id="google-language" value="en-US" />
+          </div>
+        </div>
+      </div>
+
+      <!-- ElevenLabs -->
+      <div class="config" id="config-elevenlabs">
+        <div class="row">
+          <div class="field">
+            <label for="el-key">API key</label>
+            <div class="api-key-wrapper">
+              <input type="password" id="el-key" placeholder="sk_..." autocomplete="off" />
+              <button type="button" data-toggle="el-key">show</button>
+            </div>
+            <div class="hint">Get a key at <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noopener">ElevenLabs API keys</a>.</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="el-voice">Voice ID</label>
+            <input type="text" id="el-voice" placeholder="e.g. 21m00Tcm4TlvDq8ikWAm" />
+            <div class="hint">Find your voice IDs at <a href="https://elevenlabs.io/app/voice-library" target="_blank" rel="noopener">Voice Library</a> → click a voice → copy ID.</div>
+          </div>
+          <div class="field">
+            <label for="el-model">Model</label>
+            <select id="el-model">
+              <option value="eleven_v3">eleven_v3 (most expressive)</option>
+              <option value="eleven_multilingual_v2">eleven_multilingual_v2</option>
+              <option value="eleven_turbo_v2_5">eleven_turbo_v2_5 (fast, cheap)</option>
+              <option value="eleven_flash_v2_5">eleven_flash_v2_5 (fastest)</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="el-language">Language code (optional)</label>
+            <input type="text" id="el-language" placeholder="en" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Cartesia -->
+      <div class="config" id="config-cartesia">
+        <div class="row">
+          <div class="field">
+            <label for="ca-key">API key</label>
+            <div class="api-key-wrapper">
+              <input type="password" id="ca-key" placeholder="sk_car_..." autocomplete="off" />
+              <button type="button" data-toggle="ca-key">show</button>
+            </div>
+            <div class="hint">Get a key at <a href="https://play.cartesia.ai/keys" target="_blank" rel="noopener">Cartesia keys</a>.</div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="ca-voice">Voice ID</label>
+            <input type="text" id="ca-voice" placeholder="e.g. 79a125e8-cd45-4c13-8a67-188112f4dd22" />
+            <div class="hint">Browse voices at <a href="https://play.cartesia.ai/voices" target="_blank" rel="noopener">Cartesia Voices</a>.</div>
+          </div>
+          <div class="field">
+            <label for="ca-model">Model</label>
+            <select id="ca-model">
+              <option value="sonic-3">sonic-3</option>
+              <option value="sonic-2">sonic-2</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="ca-language">Language</label>
+            <input type="text" id="ca-language" value="en" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <label for="text">Text to synthesize</label>
+      <textarea id="text" placeholder="Paste an article or any text here..."></textarea>
+      <div class="counter" id="counter">0 characters</div>
+    </div>
+
+    <button class="primary" id="speak" disabled>Generate speech</button>
+
+    <div class="status" id="status"></div>
+
+    <audio id="audio" controls></audio>
+    <div class="download-row" id="download-row">
+      <a id="download" download="tts.mp3">Download audio</a>
+    </div>
+
+    <footer>
+      <a href="https://github.com/GuyBernstein/he2en-tts" target="_blank" rel="noopener">View on GitHub</a> ·
+      Open source, runs entirely in your browser
+    </footer>
+  </main>
+
+  <script>
+    // ---- Voice presets for Google (Chirp3 HD + Standard) ----
+    const GOOGLE_VOICES = [
+      { group: "English (US) — Chirp3 HD", voices: [
+        "en-US-Chirp3-HD-Achernar", "en-US-Chirp3-HD-Achird", "en-US-Chirp3-HD-Algenib",
+        "en-US-Chirp3-HD-Algieba", "en-US-Chirp3-HD-Alnilam", "en-US-Chirp3-HD-Aoede",
+        "en-US-Chirp3-HD-Autonoe", "en-US-Chirp3-HD-Callirrhoe", "en-US-Chirp3-HD-Charon",
+        "en-US-Chirp3-HD-Despina", "en-US-Chirp3-HD-Enceladus", "en-US-Chirp3-HD-Erinome",
+        "en-US-Chirp3-HD-Fenrir", "en-US-Chirp3-HD-Gacrux", "en-US-Chirp3-HD-Iapetus",
+        "en-US-Chirp3-HD-Kore", "en-US-Chirp3-HD-Laomedeia", "en-US-Chirp3-HD-Leda",
+        "en-US-Chirp3-HD-Orus", "en-US-Chirp3-HD-Puck", "en-US-Chirp3-HD-Pulcherrima",
+        "en-US-Chirp3-HD-Rasalgethi", "en-US-Chirp3-HD-Sadachbia", "en-US-Chirp3-HD-Sadaltager",
+        "en-US-Chirp3-HD-Schedar", "en-US-Chirp3-HD-Sulafat", "en-US-Chirp3-HD-Umbriel",
+        "en-US-Chirp3-HD-Vindemiatrix", "en-US-Chirp3-HD-Zephyr", "en-US-Chirp3-HD-Zubenelgenubi",
+      ]},
+      { group: "English (US) — Standard (cheaper)", voices: [
+        "en-US-Standard-A", "en-US-Standard-B", "en-US-Standard-C", "en-US-Standard-D",
+        "en-US-Standard-E", "en-US-Standard-F", "en-US-Standard-G", "en-US-Standard-H",
+        "en-US-Standard-I", "en-US-Standard-J",
+      ]},
+      { group: "English (UK) — Chirp3 HD", voices: [
+        "en-GB-Chirp3-HD-Achird", "en-GB-Chirp3-HD-Aoede", "en-GB-Chirp3-HD-Charon",
+        "en-GB-Chirp3-HD-Kore", "en-GB-Chirp3-HD-Leda", "en-GB-Chirp3-HD-Orus",
+      ]},
+    ];
+
+    // ---- DOM helpers ----
+    const $ = (id) => document.getElementById(id);
+    const statusEl = $("status");
+    const audioEl = $("audio");
+    const downloadRow = $("download-row");
+    const downloadLink = $("download");
+    const speakBtn = $("speak");
+    const textEl = $("text");
+    const counterEl = $("counter");
+
+    // ---- Populate Google voice dropdown ----
+    (function populateVoices() {
+      const sel = $("google-voice");
+      GOOGLE_VOICES.forEach(group => {
+        const og = document.createElement("optgroup");
+        og.label = group.group;
+        group.voices.forEach(v => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = v.replace("en-US-", "").replace("en-GB-", "[GB] ");
+          og.appendChild(opt);
+        });
+        sel.appendChild(og);
+      });
+      sel.value = "en-US-Chirp3-HD-Achird";
+    })();
+
+    // ---- localStorage (saved fields) ----
+    const SAVED_FIELDS = [
+      "google-key", "google-voice", "google-language",
+      "el-key", "el-voice", "el-model", "el-language",
+      "ca-key", "ca-voice", "ca-model", "ca-language",
+    ];
+    function loadSaved() {
+      SAVED_FIELDS.forEach(id => {
+        const v = localStorage.getItem("he2en:" + id);
+        if (v !== null && $(id)) $(id).value = v;
+      });
+      const provider = localStorage.getItem("he2en:provider") || "google";
+      const radio = document.querySelector(`input[name="provider"][value="${provider}"]`);
+      if (radio) radio.checked = true;
+      switchProvider();
+      updateButton();
+    }
+    function saveField(id) {
+      localStorage.setItem("he2en:" + id, $(id).value);
+    }
+    SAVED_FIELDS.forEach(id => {
+      const el = $(id);
+      if (el) el.addEventListener("change", () => { saveField(id); updateButton(); });
+      if (el && el.tagName === "INPUT") el.addEventListener("input", () => { saveField(id); updateButton(); });
+    });
+
+    // ---- Provider switching ----
+    function switchProvider() {
+      const provider = document.querySelector('input[name="provider"]:checked').value;
+      localStorage.setItem("he2en:provider", provider);
+      document.querySelectorAll(".config").forEach(c => c.classList.remove("active"));
+      $("config-" + provider).classList.add("active");
+      updateButton();
+    }
+    document.querySelectorAll('input[name="provider"]').forEach(r =>
+      r.addEventListener("change", switchProvider));
+
+    // ---- Show/hide API key ----
+    document.querySelectorAll('button[data-toggle]').forEach(btn => {
+      btn.addEventListener("click", () => {
+        const target = $(btn.dataset.toggle);
+        if (target.type === "password") { target.type = "text"; btn.textContent = "hide"; }
+        else { target.type = "password"; btn.textContent = "show"; }
+      });
+    });
+
+    // ---- Char counter ----
+    function updateCounter() {
+      const n = textEl.value.length;
+      counterEl.textContent = `${n.toLocaleString()} character${n === 1 ? "" : "s"}`;
+      counterEl.className = "counter";
+      if (n > 4000) counterEl.classList.add("warn");
+      if (n > 5000) counterEl.classList.add("danger");
+      if (n > 4000) counterEl.textContent += " — long text may be rejected (ElevenLabs ~5k, Cartesia ~2k per request)";
+    }
+    textEl.addEventListener("input", () => { updateCounter(); updateButton(); });
+
+    // ---- Enable/disable button ----
+    function currentProvider() { return document.querySelector('input[name="provider"]:checked').value; }
+    function hasRequired() {
+      if (!textEl.value.trim()) return false;
+      const p = currentProvider();
+      if (p === "google") return !!$("google-key").value && !!$("google-voice").value;
+      if (p === "elevenlabs") return !!$("el-key").value && !!$("el-voice").value;
+      if (p === "cartesia") return !!$("ca-key").value && !!$("ca-voice").value;
+      return false;
+    }
+    function updateButton() { speakBtn.disabled = !hasRequired(); }
+
+    // ---- Status messages ----
+    function setStatus(message, type) {
+      statusEl.textContent = "";
+      if (type === "loading") {
+        const sp = document.createElement("span"); sp.className = "spinner";
+        statusEl.appendChild(sp);
+        statusEl.appendChild(document.createTextNode(message));
+      } else {
+        statusEl.textContent = message;
+      }
+      statusEl.className = "status show " + (type || "info");
+    }
+    function clearStatus() { statusEl.className = "status"; }
+
+    // ---- Provider implementations ----
+    async function ttsGoogle(text) {
+      const key = $("google-key").value;
+      const voice = $("google-voice").value;
+      const lang = $("google-language").value || "en-US";
+      const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(key)}`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: { text },
+          voice: { languageCode: lang, name: voice },
+          audioConfig: { audioEncoding: "MP3" },
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Google TTS ${res.status}: ${errText.slice(0, 200)}`);
+      }
+      const data = await res.json();
+      if (!data.audioContent) throw new Error("Google TTS: empty audioContent");
+      const bytes = Uint8Array.from(atob(data.audioContent), c => c.charCodeAt(0));
+      return new Blob([bytes], { type: "audio/mpeg" });
+    }
+
+    async function ttsElevenLabs(text) {
+      const key = $("el-key").value;
+      const voice = $("el-voice").value;
+      const model = $("el-model").value;
+      const lang = $("el-language").value;
+      const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`;
+      const payload = { text, model_id: model };
+      if (lang) payload.language_code = lang;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "xi-api-key": key },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`ElevenLabs ${res.status}: ${errText.slice(0, 200)}`);
+      }
+      return await res.blob();
+    }
+
+    async function ttsCartesia(text) {
+      const key = $("ca-key").value;
+      const voice = $("ca-voice").value;
+      const model = $("ca-model").value;
+      const lang = $("ca-language").value || "en";
+      const res = await fetch("https://api.cartesia.ai/tts/bytes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": key,
+          "Cartesia-Version": "2025-11-04",
+        },
+        body: JSON.stringify({
+          model_id: model,
+          transcript: text,
+          voice: { mode: "id", id: voice },
+          language: lang,
+          output_format: { container: "mp3", sample_rate: 44100, bit_rate: 128000 },
+        }),
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Cartesia ${res.status}: ${errText.slice(0, 200)}`);
+      }
+      return await res.blob();
+    }
+
+    // ---- Speak handler ----
+    let lastObjectUrl = null;
+    speakBtn.addEventListener("click", async () => {
+      const text = textEl.value.trim();
+      if (!text) return;
+
+      audioEl.classList.remove("show");
+      downloadRow.classList.remove("show");
+      if (lastObjectUrl) { URL.revokeObjectURL(lastObjectUrl); lastObjectUrl = null; }
+
+      const provider = currentProvider();
+      speakBtn.disabled = true;
+      setStatus(`Synthesizing via ${provider}...`, "loading");
+
+      try {
+        let blob;
+        if (provider === "google") blob = await ttsGoogle(text);
+        else if (provider === "elevenlabs") blob = await ttsElevenLabs(text);
+        else blob = await ttsCartesia(text);
+
+        const url = URL.createObjectURL(blob);
+        lastObjectUrl = url;
+        audioEl.src = url;
+        audioEl.classList.add("show");
+        downloadLink.href = url;
+        downloadLink.download = `tts-${Date.now()}.mp3`;
+        downloadRow.classList.add("show");
+        audioEl.play().catch(() => {});
+        setStatus(`Done — ${(blob.size / 1024).toFixed(1)} KB`, "success");
+      } catch (err) {
+        console.error(err);
+        let hint = "";
+        if (err.message && err.message.includes("Failed to fetch")) {
+          hint = " (network or CORS error — check browser console)";
+        }
+        setStatus("Error: " + err.message + hint, "error");
+      } finally {
+        updateButton();
+      }
+    });
+
+    // ---- Init ----
+    loadSaved();
+    updateCounter();
+  </script>
+</body>
+</html>
