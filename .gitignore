@@ -1,0 +1,8 @@
+*.wav
+tts_config.json
+tts_usage.json
+env.conf
+.env
+he2en-tts
+he2en-tts-arm64
+.DS_Store

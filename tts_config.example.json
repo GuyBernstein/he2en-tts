@@ -1,0 +1,70 @@
+{
+  "order": ["elevenlabs", "cartesia", "google_chirp3", "google_std"],
+  "timezone": "America/New_York",
+  "providers": {
+    "elevenlabs": {
+      "enabled": false,
+      "api_key_env": "ELEVENLABS_API_KEY",
+      "model_id": "eleven_v3",
+      "language": "en",
+      "morning": {
+        "voice_id": "YOUR_ELEVENLABS_VOICE_ID",
+        "voice_settings": {
+          "stability": 0.30,
+          "similarity_boost": 0.75,
+          "style": 0.65,
+          "use_speaker_boost": true
+        }
+      },
+      "evening": {
+        "voice_id": "YOUR_ELEVENLABS_VOICE_ID",
+        "voice_settings": {
+          "stability": 0.65,
+          "similarity_boost": 0.75,
+          "style": 0.20,
+          "use_speaker_boost": false
+        }
+      }
+    },
+    "cartesia": {
+      "enabled": false,
+      "api_key_env": "CARTESIA_API_KEY",
+      "model_id": "sonic-3",
+      "language": "en",
+      "morning": {
+        "voice_id": "YOUR_CARTESIA_VOICE_ID",
+        "emotion": "affectionate"
+      },
+      "evening": {
+        "voice_id": "YOUR_CARTESIA_VOICE_ID",
+        "emotion": "peaceful"
+      }
+    },
+    "google_chirp3": {
+      "enabled": true,
+      "api_key_env": "GEMINI_API_KEY",
+      "language": "en-US",
+      "morning": {
+        "voice_name": "en-US-Chirp3-HD-Achird"
+      },
+      "evening": {
+        "voice_name": "en-US-Chirp3-HD-Achird"
+      }
+    },
+    "google_std": {
+      "enabled": true,
+      "api_key_env": "GEMINI_API_KEY",
+      "language": "en-US",
+      "morning": {
+        "voice_name": "en-US-Standard-B"
+      },
+      "evening": {
+        "voice_name": "en-US-Standard-A"
+      }
+    }
+  },
+  "budget": {
+    "chirp3_hd": 900000,
+    "standard": 3600000
+  }
+}
